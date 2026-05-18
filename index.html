@@ -1,189 +1,565 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
+    <!-- 使用時間戳（快取破解）確保瀏覽器載入最新版圖示 -->
+    <link class="flex-shrink-0" rel="icon" type="image/png" sizes="192x192" href="icon.png?v=20260518">
+    <link class="flex-shrink-0" rel="icon" type="image/png" sizes="512x512" href="icon.png?v=20260518">
+    <link class="flex-shrink-0" rel="apple-touch-icon" href="icon.png?v=20260518">
+    <link class="flex-shrink-0" rel="apple-touch-icon" sizes="180x180" href="icon.png?v=20260518">
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的 Firestore 願望清單V2</title>
-    
-    <link rel="icon" type="image/png" sizes="192x192" href="icon.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icon.png">
-
-    <link rel="apple-touch-icon" href="icon.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="icon.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="icon.png">
-
+    <title>我的願望購買清單</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght=400;500;700&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; }
-        .active-btn { background-color: white; color: #27272a; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); border: 1px solid rgba(228, 228, 231, 0.5); }
-        .inactive-btn { color: #a1a1aa; }
+        .img-preview { object-fit: cover; width: 60px; height: 60px; border-radius: 8px; transition: transform 0.2s; }
+        .img-preview:hover { transform: scale(1.05); }
     </style>
 </head>
 <body class="bg-zinc-100 min-h-screen py-10 px-4">
     <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8">
         
         <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-6 mb-6 gap-4">
-            <h1 class="text-2xl font-bold text-zinc-800 flex items-center gap-2">✨ 雲端願望清單</h1>
-            <div class="flex items-center gap-1.5 bg-zinc-100 p-1 rounded-lg border border-zinc-200">
-                <button type="button" id="btn-TWD" onclick="setGlobalCurrency('TWD')" class="text-xs font-bold px-2.5 py-1 rounded-md transition">NT$</button>
-                <button type="button" id="btn-JPY" onclick="setGlobalCurrency('JPY')" class="text-xs font-bold px-2.5 py-1 rounded-md transition">¥</button>
+            <!-- 標題整合版號辨識 -->
+            <h1 class="text-2xl font-bold text-zinc-800 flex items-baseline gap-2">
+                <span>✨ 我的願望購買清單(同步雲)</span>
+                <span id="app-version-tag" class="text-xs font-mono text-zinc-400 font-normal select-none">載入中...</span>
+            </h1>
+            <div class="flex items-center gap-3 self-end sm:self-auto">
+                <!-- 🔐 管理員權限按鈕 (登入/登出共用切換) -->
+                <button id="admin-auth-btn" class="text-xs font-medium px-3 py-1.5 rounded-md border border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 transition shadow-sm cursor-pointer">
+                    🔑 管理員登入
+                </button>
+                <span id="total-count" class="text-zinc-500 text-sm font-medium bg-zinc-50 px-2.5 py-1 rounded-md border border-zinc-100">載入中...</span>
             </div>
         </div>
 
         <form id="wish-form" class="space-y-4 mb-10 bg-zinc-50 p-5 rounded-xl border border-zinc-200">
             
-            <div class="flex flex-col md:flex-row gap-4">
-                <div class="w-full md:w-40">
-                    <label class="block text-sm font-medium text-zinc-600 mb-1">分類</label>
-                    <select id="item-category" class="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm bg-white outline-none">
+            <!-- 第一列：商品分類、商品名稱 -->
+            <div class="grid grid-cols-3 gap-4">
+                <div class="col-span-1">
+                    <label class="block text-sm font-medium text-zinc-600 mb-1">商品分類</label>
+                    <select id="item-category" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm bg-white font-medium h-[38px]">
                         <option value="藥妝類">💄 藥妝類</option>
                         <option value="食物類">🍕 食物類</option>
                         <option value="玩具類">🧸 玩具類</option>
                         <option value="其他">📦 其他</option>
                     </select>
                 </div>
-                <div class="flex-1">
+                <div class="col-span-2">
                     <label class="block text-sm font-medium text-zinc-600 mb-1">商品名稱 *</label>
-                    <input type="text" id="item-name" required class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm" placeholder="想買什麼？">
+                    <input type="text" id="item-name" required class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm h-[38px]" placeholder="想買什麼？(無管理員權限將無法儲存)">
                 </div>
             </div>
-            
-            <div class="flex flex-col md:flex-row gap-4">
-                <div class="flex-1">
-                    <label class="block text-sm font-medium text-zinc-600 mb-1">預估金額</label>
+
+            <!-- 第二列：商品單價、商品數量 -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-zinc-600 mb-1">商品單價 (可不填)</label>
                     <div class="flex gap-2 items-center">
-                        <span id="form-currency-label" class="px-3 py-2 bg-zinc-200 text-zinc-700 rounded-lg text-sm font-bold min-w-[54px] text-center">NT$</span>
-                        <input type="number" id="item-price" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm" placeholder="金額">
+                        <select id="item-currency" class="px-2 py-2 bg-zinc-200/70 border border-zinc-300 text-zinc-700 rounded-lg text-sm font-bold min-w-[65px] text-center outline-none bg-white h-[38px]">
+                            <option value="JPY">¥</option>
+                            <option value="TWD">NT$</option>
+                        </select>
+                        <input type="number" id="item-price" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm h-[38px]" placeholder="未定">
                     </div>
                 </div>
-                <div class="w-full md:w-32">
+                <div>
                     <label class="block text-sm font-medium text-zinc-600 mb-1">數量</label>
-                    <input type="number" id="item-quantity" min="1" value="1" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm">
+                    <input type="number" id="item-quantity" min="1" value="1" required class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm h-[38px]">
                 </div>
             </div>
 
+            <!-- 第三列：備註 -->
             <div>
-                <label class="block text-sm font-medium text-zinc-600 mb-1">備註 (選填)</label>
-                <input type="text" id="item-note" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm" placeholder="顏色、規格或是預計購買地點 (例如：福岡寶可夢中心)...">
+                <label class="block text-sm font-medium text-zinc-600 mb-1">備註 (顏色、規格、購買地點...)</label>
+                <input type="text" id="item-note" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm h-[38px]" placeholder="例如：幫朋友帶的、限定版">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-zinc-600 mb-1">商品圖片 (貼上或點擊)</label>
+                <div id="paste-zone" class="border-2 border-dashed border-zinc-300 bg-white rounded-lg p-2 text-center cursor-pointer hover:bg-zinc-100 transition flex flex-col items-center justify-center min-h-[85px]">
+                    <p id="paste-hint" class="text-[11px] text-zinc-400">Ctrl+V 貼上截圖 或 點擊上傳</p>
+                    <input type="file" id="item-image" accept="image/*" class="hidden">
+                    <img id="form-img-preview" class="hidden w-10 h-10 object-cover rounded mt-1 border">
+                </div>
             </div>
 
-            <button type="submit" id="submit-btn" class="w-full bg-zinc-800 hover:bg-black text-white font-medium py-2.5 rounded-lg shadow-md transition mt-2">存入 Firestore</button>
+            <button type="submit" id="submit-btn" class="w-full bg-zinc-800 hover:bg-black text-white font-medium py-2.5 rounded-lg transition shadow-md">
+                加入雲端清單 (需已登入管理員)
+            </button>
         </form>
 
+        <!-- 分類篩選頁籤區 -->
+        <div class="flex flex-wrap gap-2 border-b border-zinc-200 pb-3 mb-4" id="category-tabs">
+            <!-- 這裡會經由 JS 動態渲染頁籤 -->
+        </div>
+
+        <!-- 商品清單區 -->
         <div class="space-y-4" id="wish-list">
-            <p class="text-center text-zinc-400 py-10">連線到雲端中...</p>
+            <p class="text-center py-10 text-zinc-400">連線中...</p>
+        </div>
+    </div>
+
+    <!-- 🖼️ 圖片燈箱放大彈窗 -->
+    <div id="image-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 cursor-zoom-out" onclick="closeModal()">
+        <img id="modal-img" class="max-w-full max-h-full rounded-lg shadow-2xl object-contain">
+    </div>
+
+    <!-- 🔐 管理員安全登入彈窗 (Modal) -->
+    <div id="login-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onclick="closeLoginModal(event)">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm border border-zinc-200" onclick="event.stopPropagation()">
+            <h3 class="text-lg font-bold text-zinc-800 mb-4 flex items-center gap-2">🔑 管理員安全登入</h3>
+            <form id="modal-login-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-zinc-500 mb-1">管理員帳號 (Email)</label>
+                    <input type="email" id="login-email" required class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm h-[38px]" placeholder="admin@example.com">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-zinc-500 mb-1">管理員密碼</label>
+                    <input type="password" id="login-password" required autocomplete="current-password" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm h-[38px]" placeholder="••••••••">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeLoginModal(null)" class="w-1/2 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-sm font-medium py-2 rounded-lg transition">
+                        取消
+                    </button>
+                    <button type="submit" class="w-1/2 bg-zinc-800 hover:bg-black text-white text-sm font-medium py-2 rounded-lg transition shadow-sm">
+                        確認登入
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ✏️ 一體化修改彈窗 (Modal) - 已新增備註修改欄位 -->
+    <div id="edit-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onclick="closeEditModal(event)">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm border border-zinc-200" onclick="event.stopPropagation()">
+            <h3 id="edit-modal-title" class="text-base font-bold text-zinc-800 mb-4 truncate">📝 修改商品資料</h3>
+            <form id="modal-edit-form" class="space-y-4">
+                <input type="hidden" id="edit-wish-id">
+                
+                <div>
+                    <label class="block text-xs font-medium text-zinc-500 mb-1">商品單價 (留空代表未定)</label>
+                    <div class="flex gap-2 items-center">
+                        <select id="edit-item-currency" class="px-2 py-2 border border-zinc-300 text-zinc-700 rounded-lg text-sm font-bold min-w-[65px] text-center outline-none bg-white h-[38px]">
+                            <option value="JPY">¥</option>
+                            <option value="TWD">NT$</option>
+                        </select>
+                        <input type="number" id="edit-item-price" step="any" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm h-[38px]" placeholder="未定">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-zinc-500 mb-1">數量</label>
+                    <input type="number" id="edit-item-quantity" min="1" required class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm h-[38px]">
+                </div>
+
+                <!-- 🌐 新增：修改備註欄位 -->
+                <div>
+                    <label class="block text-xs font-medium text-zinc-500 mb-1">備註 (顏色、規格、購買地點...)</label>
+                    <input type="text" id="edit-item-note" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm h-[38px]" placeholder="例如：幫朋友帶的、限定版">
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeEditModal(null)" class="w-1/2 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-sm font-medium py-2 rounded-lg transition">
+                        取消
+                    </button>
+                    <button type="submit" class="w-1/2 bg-zinc-800 hover:bg-black text-white text-sm font-medium py-2 rounded-lg transition shadow-sm">
+                        儲存修改
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        // 定義現行版本號
+        const APP_VERSION = "v1.7.1";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyAMEvxdgaRx-sJBgGBPCL2ZKJ-bbyN0oJs",
-            authDomain: "mywishlist-d04b4.firebaseapp.com",
-            projectId: "mywishlist-d04b4",
-            storageBucket: "mywishlist-d04b4.firebasestorage.app",
-            messagingSenderId: "682898028986",
-            appId: "1:682898028986:web:3efed38d9645c42f0a0583",
-            measurementId: "G-BB5TRK837X"
+        const SUPABASE_URL = 'https://dqinkidnogubkkmivbex.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_P8Y4os8w2PkGNllolnNU3A_OpsGrX_q';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let wishes = [];
+        let currentImageData = "";
+        let currentTab = "全部";
+
+        const categoryStyles = {
+            '藥妝類': 'bg-pink-50 text-pink-700 border-pink-200',
+            '食物類': 'bg-amber-50 text-amber-700 border-amber-200',
+            '玩具類': 'bg-purple-50 text-purple-700 border-purple-200',
+            '其他': 'bg-zinc-100 text-zinc-600 border-zinc-300'
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        
-        let currentCurrency = localStorage.getItem('pref_currency') || 'TWD';
+        const tabsConfig = [
+            { id: '全部', label: '🌐 全部' },
+            { id: '藥妝類', label: '💄 藥妝類' },
+            { id: '食物類', label: '🍕 食物類' },
+            { id: '玩具類', label: '🧸 玩具類' },
+            { id: '其他', label: '📦 其他' }
+        ];
+
         const currencySymbols = { 'TWD': 'NT$', 'JPY': '¥' };
 
-        const q = query(collection(db, "wishes"), orderBy("createdAt", "desc"));
-        onSnapshot(q, (snapshot) => {
-            renderList(snapshot);
-        });
+        document.getElementById('app-version-tag').textContent = APP_VERSION;
 
-        function renderList(snapshot) {
-            const listDiv = document.getElementById('wish-list');
-            listDiv.innerHTML = '';
-
-            snapshot.forEach((docSnap) => {
-                const wish = docSnap.data();
-                const id = docSnap.id;
-                const itemCurrency = wish.currency || currentCurrency;
-                const symbol = currencySymbols[itemCurrency];
-                const total = wish.price ? `${symbol} ${(wish.price * (wish.quantity || 1)).toLocaleString()}` : '未填金額';
-
-                const card = document.createElement('div');
-                card.className = `flex items-center gap-4 p-4 rounded-xl border bg-white shadow-sm transition ${wish.bought ? 'opacity-50 grayscale' : ''}`;
-                card.innerHTML = `
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <input type="checkbox" ${wish.bought ? 'checked' : ''} 
-                                   onclick="toggleStatus('${id}', ${wish.bought})" 
-                                   class="w-4 h-4 accent-zinc-800 cursor-pointer">
-                            <span class="font-bold truncate ${wish.bought ? 'line-through text-zinc-400' : 'text-zinc-800'}">${wish.name}</span>
-                            <span class="text-[10px] px-1.5 py-0.5 rounded border border-zinc-200 bg-zinc-50 text-zinc-500">${wish.category}</span>
-                        </div>
-                        <div class="text-xs text-zinc-500 mt-1 pl-6">
-                            數量: ${wish.quantity || 1} | 總計: <span class="text-emerald-600 font-bold">${total}</span>
-                        </div>
-                        ${wish.note ? `<div class="text-[11px] text-zinc-400 mt-1 pl-6 italic">💬 ${wish.note}</div>` : ''}
-                    </div>
-                    <button onclick="deleteWish('${id}')" class="text-zinc-300 hover:text-red-500 transition">🗑️</button>
-                `;
-                listDiv.appendChild(card);
-            });
-
-            if (snapshot.empty) {
-                listDiv.innerHTML = '<p class="text-center text-zinc-400 py-10">清單目前是空的，快去買東西吧！</p>';
+        async function handleAuthAction() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            
+            if (session) {
+                if (confirm("確定要登出管理員身份，切換回唯讀訪客模式嗎？")) {
+                    const { error } = await supabaseClient.auth.signOut();
+                    if (error) {
+                        alert("登出失敗：" + error.message);
+                    } else {
+                        alert("🟢 已安全登出！網頁現已恢復訪客防護狀態。");
+                        updateAuthButtonState(null);
+                        await fetchWishes();
+                    }
+                }
+            } else {
+                document.getElementById('login-modal').classList.remove('hidden');
+                document.getElementById('login-email').focus();
             }
         }
 
-        document.getElementById('wish-form').onsubmit = async (e) => {
+        window.closeLoginModal = function(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('modal-login-form').reset();
+        };
+
+        document.getElementById('modal-login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const btn = document.getElementById('submit-btn');
-            btn.disabled = true;
-            btn.innerText = "儲存中...";
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
 
-            try {
-                await addDoc(collection(db, "wishes"), {
-                    name: document.getElementById('item-name').value,
-                    price: document.getElementById('item-price').value ? Number(document.getElementById('item-price').value) : null,
-                    currency: currentCurrency,
-                    category: document.getElementById('item-category').value,
-                    quantity: Number(document.getElementById('item-quantity').value),
-                    note: document.getElementById('item-note').value || "",
-                    bought: false,
-                    createdAt: new Date()
-                });
-                e.target.reset();
-                window.setGlobalCurrency(currentCurrency);
-            } catch (err) {
-                alert("儲存失敗: " + err.message);
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "存入 Firestore";
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+            if (error) {
+                alert("❌ 登入失敗：" + error.message);
+            } else {
+                alert("🎉 登入成功！您現在擁有修改清單的最高權限。");
+                updateAuthButtonState(data.session);
+                closeLoginModal(null);
+                await fetchWishes();
+            }
+        });
+
+        function updateAuthButtonState(session) {
+            const btn = document.getElementById('admin-auth-btn');
+            if (session) {
+                btn.textContent = "🚪 登出管理員";
+                btn.className = "text-xs font-semibold px-3 py-1.5 rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition shadow-sm cursor-pointer";
+            } else {
+                btn.textContent = "🔑 管理員登入";
+                btn.className = "text-xs font-medium px-3 py-1.5 rounded-md border border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 transition shadow-sm cursor-pointer";
+            }
+        }
+
+        document.getElementById('admin-auth-btn').addEventListener('click', handleAuthAction);
+
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            updateAuthButtonState(session);
+        });
+
+        window.closeModal = function() {
+            document.getElementById('image-modal').classList.add('hidden');
+        };
+        window.openModal = function(src) {
+            const modal = document.getElementById('image-modal');
+            const modalImg = document.getElementById('modal-img');
+            modalImg.src = src;
+            modal.classList.remove('hidden');
+        };
+
+        window.toggleBought = async function(id, isBought) {
+            const { error } = await supabaseClient
+                .from('wishes')
+                .update({ bought: isBought })
+                .eq('id', id);
+
+            if (error) {
+                alert('操作失敗！無管理員權限或連線異常。');
+                await fetchWishes(); 
+            } else {
+                const wish = wishes.find(w => w.id === id);
+                if (wish) wish.bought = isBought;
+                renderWishes();
             }
         };
 
-        window.toggleStatus = async (id, currentStatus) => {
-            await updateDoc(doc(db, "wishes", id), { bought: !currentStatus });
+        // 🌐 新增：開啟一體化修改視窗並自動填入資料 (加入備註參數)
+        window.openEditModal = function(id, currentName, currentPrice, currentQuantity, currentCurrency, currentNote) {
+            document.getElementById('edit-wish-id').value = id;
+            document.getElementById('edit-modal-title').textContent = `✏️ 修改：${currentName}`;
+            document.getElementById('edit-item-price').value = (currentPrice !== null && currentPrice !== undefined) ? currentPrice : '';
+            document.getElementById('edit-item-quantity').value = currentQuantity || 1;
+            document.getElementById('edit-item-currency').value = currentCurrency || 'JPY';
+            document.getElementById('edit-item-note').value = currentNote || ''; // 自動帶入原本備註
+            
+            document.getElementById('edit-modal').classList.remove('hidden');
+            document.getElementById('edit-item-price').focus();
         };
 
-        window.deleteWish = async (id) => {
-            if (confirm("確定要刪除這項願望嗎？")) {
-                await deleteDoc(doc(db, "wishes", id));
+        window.closeEditModal = function(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('edit-modal').classList.add('hidden');
+            document.getElementById('modal-edit-form').reset();
+        };
+
+        // 🌐 處理一體化修改表單送出 (加入備註寫入)
+        document.getElementById('modal-edit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const id = document.getElementById('edit-wish-id').value;
+            const priceInput = document.getElementById('edit-item-price').value.trim();
+            const quantityInput = document.getElementById('edit-item-quantity').value;
+            const currency = document.getElementById('edit-item-currency').value;
+            const note = document.getElementById('edit-item-note').value.trim(); // 獲取新備註
+
+            let price = priceInput === '' ? null : parseFloat(priceInput);
+            if (price !== null && (isNaN(price) || price < 0)) {
+                alert('請輸入有效的單價數字！');
+                return;
+            }
+
+            let quantity = parseInt(quantityInput);
+            if (isNaN(quantity) || quantity < 1) quantity = 1;
+
+            const { error } = await supabaseClient
+                .from('wishes')
+                .update({ price, quantity, currency, note }) // 同步儲存備註到資料庫
+                .eq('id', id);
+
+            if (error) {
+                alert('更新失敗！請確認您是否已登入管理員帳號。');
+            } else {
+                closeEditModal(null);
+                await fetchWishes();
+            }
+        });
+
+        window.deleteWish = async function(id) {
+            if (!confirm('確定要刪除這項商品嗎？')) return;
+
+            const { error } = await supabaseClient
+                .from('wishes')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                alert('刪除失敗！請確認您是否已登入管理員帳號。');
+            } else {
+                await fetchWishes();
             }
         };
 
-        window.setGlobalCurrency = (cur) => {
-            currentCurrency = cur;
-            localStorage.setItem('pref_currency', cur);
-            document.getElementById('btn-TWD').className = `text-xs font-bold px-2.5 py-1 rounded-md transition ${cur === 'TWD' ? 'active-btn' : 'inactive-btn'}`;
-            document.getElementById('btn-JPY').className = `text-xs font-bold px-2.5 py-1 rounded-md transition ${cur === 'JPY' ? 'active-btn' : 'inactive-btn'}`;
-            document.getElementById('form-currency-label').innerText = currencySymbols[cur];
+        window.switchTab = function(tabId) {
+            currentTab = tabId;
+            renderWishes();
         };
 
-        window.setGlobalCurrency(currentCurrency);
+        async function fetchWishes() {
+            const { data, error } = await supabaseClient
+                .from('wishes')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                document.getElementById('wish-list').innerHTML = `<p class="text-center text-red-400">載入錯誤</p>`;
+            } else {
+                wishes = data;
+                renderWishes();
+            }
+        }
+
+        function renderTabs() {
+            const tabsContainer = document.getElementById('category-tabs');
+            tabsContainer.innerHTML = '';
+
+            tabsConfig.forEach(tab => {
+                const count = tab.id === '全部' 
+                    ? wishes.length 
+                    : wishes.filter(w => w.category === tab.id).length;
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.onclick = () => switchTab(tab.id);
+                
+                if (currentTab === tab.id) {
+                    button.className = "px-3 py-1.5 text-xs font-bold rounded-lg transition bg-zinc-800 text-white shadow-sm border border-zinc-800";
+                } else {
+                    button.className = "px-3 py-1.5 text-xs font-medium rounded-lg transition bg-zinc-100 text-zinc-600 hover:bg-zinc-200 border border-transparent";
+                }
+
+                button.innerHTML = `${tab.label} <span class="ml-1 opacity-70">(${count})</span>`;
+                tabsContainer.appendChild(button);
+            });
+        }
+
+        function renderWishes() {
+            const wishList = document.getElementById('wish-list');
+            const totalCount = document.getElementById('total-count');
+            
+            renderTabs();
+
+            if (wishes.length === 0) {
+                wishList.innerHTML = `<p class="text-center py-10 text-zinc-400">目前清單空空如也 💨</p>`;
+                totalCount.textContent = `共 0 項商品`;
+                return;
+            }
+
+            const filteredWishes = currentTab === '全部' 
+                ? wishes 
+                : wishes.filter(w => w.category === currentTab);
+
+            totalCount.textContent = `共 ${wishes.length} 項商品`;
+            wishList.innerHTML = '';
+
+            if (filteredWishes.length === 0) {
+                wishList.innerHTML = `<p class="text-center py-10 text-zinc-400">此分類目前沒有商品 🫙</p>`;
+                return;
+            }
+
+            filteredWishes.forEach(wish => {
+                const badgeClass = categoryStyles[wish.category] || categoryStyles['開源'];
+                const symbol = currencySymbols[wish.currency] || '¥'; 
+                
+                let priceDisplay = '';
+                // 將字串內潛在的單雙引號做跳脫，避免傳入 onclick 屬性時造成 HTML 語法破裂
+                const escapedName = wish.name.replace(/['"]/g, '&quot;');
+                const escapedNote = (wish.note || '').replace(/['"]/g, '&quot;');
+
+                if (wish.price !== null && wish.price !== undefined && wish.price !== '') {
+                    const total = wish.price * (wish.quantity || 1);
+                    priceDisplay = `
+                        <div class="flex items-center gap-2 mb-1 flex-wrap">
+                            <p class="text-xs text-zinc-500">單價與總計：${symbol}${wish.price} × ${wish.quantity} = <span class="font-bold text-zinc-800">${symbol}${total}</span></p>
+                            <button onclick="openEditModal(${wish.id}, '${escapedName}', ${wish.price}, ${wish.quantity}, '${wish.currency}', '${escapedNote}')" class="text-[11px] text-zinc-500 bg-zinc-100 hover:bg-zinc-200 border border-zinc-300 px-1.5 py-0.5 rounded transition font-medium">
+                                ✏️ 修改
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    priceDisplay = `
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xs text-zinc-400 italic">單價：未定 (數量: ${wish.quantity})</span>
+                            <button onclick="openEditModal(${wish.id}, '${escapedName}', null, ${wish.quantity}, '${wish.currency}', '${escapedNote}')" class="text-[11px] text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded transition font-medium">
+                                ✏️ 修改單價/數量/備註
+                            </button>
+                        </div>
+                    `;
+                }
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `bg-white p-4 rounded-xl border border-zinc-200 shadow-sm flex items-center gap-4 transition hover:shadow-md ${wish.bought ? 'opacity-60 bg-zinc-50/50' : ''}`;
+                
+                let imgHtml = '';
+                if (wish.image) {
+                    imgHtml = `<img src="${wish.image}" class="img-preview cursor-zoom-in border flex-shrink-0" onclick="openModal('${wish.image}')">`;
+                }
+
+                itemDiv.innerHTML = `
+                    <div class="flex items-center flex-shrink-0">
+                        <input type="checkbox" 
+                               ${wish.bought ? 'checked' : ''} 
+                               onchange="toggleBought(${wish.id}, this.checked)"
+                               class="w-5 h-5 rounded text-zinc-800 focus:ring-zinc-500 border-zinc-300 cursor-pointer">
+                    </div>
+
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <span class="text-xs px-2 py-0.5 rounded-full border ${badgeClass} font-medium">${wish.category}</span>
+                            <h3 class="text-base font-bold text-zinc-800 truncate ${wish.bought ? 'line-through text-zinc-400' : ''}">${wish.name}</h3>
+                        </div>
+                        ${priceDisplay}
+                        ${wish.note ? `<p class="text-xs text-zinc-400 bg-zinc-50 p-1.5 rounded border border-zinc-100 inline-block max-w-full truncate">📝 ${wish.note}</p>` : ''}
+                    </div>
+                    
+                    ${imgHtml}
+
+                    <button onclick="deleteWish(${wish.id})" class="text-zinc-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-zinc-100 transition flex-shrink-0" title="刪除商品">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                        </svg>
+                    </button>
+                `;
+                wishList.appendChild(itemDiv);
+            });
+        }
+
+        document.getElementById('wish-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '儲存中...';
+
+            const name = document.getElementById('item-name').value;
+            const category = document.getElementById('item-category').value;
+            const quantity = parseInt(document.getElementById('item-quantity').value) || 1;
+            const price = document.getElementById('item-price').value ? parseFloat(document.getElementById('item-price').value) : null;
+            const currency = document.getElementById('item-currency').value;
+            const note = document.getElementById('item-note').value;
+
+            const { error } = await supabaseClient
+                .from('wishes')
+                .insert([{ name, category, quantity, price, currency, note, image: currentImageData, bought: false }]);
+
+            if (error) {
+                alert('儲存失敗！請確認您是否已成功登入管理員帳號。\n錯誤訊息：' + error.message);
+            } else {
+                document.getElementById('wish-form').reset();
+                document.getElementById('item-currency').value = 'JPY';
+                document.getElementById('form-img-preview').classList.add('hidden');
+                document.getElementById('paste-hint').classList.remove('hidden');
+                currentImageData = "";
+                await fetchWishes();
+            }
+            submitBtn.disabled = false;
+            submitBtn.textContent = '加入雲端清單 (需已登入管理員)';
+        });
+
+        const pasteZone = document.getElementById('paste-zone');
+        const fileInput = document.getElementById('item-image');
+        const formImgPreview = document.getElementById('form-img-preview');
+        const pasteHint = document.getElementById('paste-hint');
+
+        pasteZone.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        });
+
+        document.addEventListener('paste', (e) => {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const file = items[i].getAsFile();
+                    handleFile(file);
+                    break;
+                }
+            }
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                currentImageData = e.target.result;
+                formImgPreview.src = currentImageData;
+                formImgPreview.classList.remove('hidden');
+                pasteHint.classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        fetchWishes();
     </script>
 </body>
 </html>
