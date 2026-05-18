@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的 Firestore 願望清單</title>
+    
+    <link rel="icon" type="image/png" sizes="192x192" href="icon.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon.png">
+
+    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
@@ -54,6 +62,11 @@
                 </div>
             </div>
 
+            <div>
+                <label class="block text-sm font-medium text-zinc-600 mb-1">備註 (選填)</label>
+                <input type="text" id="item-note" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm" placeholder="顏色、規格或是購買地點...">
+            </div>
+
             <button type="submit" id="submit-btn" class="w-full bg-zinc-800 hover:bg-black text-white font-medium py-2.5 rounded-lg shadow-md transition">存入 Firestore</button>
         </form>
 
@@ -66,18 +79,15 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // 🔥 請將此處替換成你的 Firebase Config
         const firebaseConfig = {
-
-  apiKey: "AIzaSyAMEvxdgaRx-sJBgGBPCL2ZKJ-bbyN0oJs",
-  authDomain: "mywishlist-d04b4.firebaseapp.com",
-  projectId: "mywishlist-d04b4",
-  storageBucket: "mywishlist-d04b4.firebasestorage.app",
-  messagingSenderId: "682898028986",
-  appId: "1:682898028986:web:3efed38d9645c42f0a0583",
-  measurementId: "G-BB5TRK837X"
-};
-
+            apiKey: "AIzaSyAMEvxdgaRx-sJBgGBPCL2ZKJ-bbyN0oJs",
+            authDomain: "mywishlist-d04b4.firebaseapp.com",
+            projectId: "mywishlist-d04b4",
+            storageBucket: "mywishlist-d04b4.firebasestorage.app",
+            messagingSenderId: "682898028986",
+            appId: "1:682898028986:web:3efed38d9645c42f0a0583",
+            measurementId: "G-BB5TRK837X"
+        };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -85,13 +95,11 @@
         let currentCurrency = localStorage.getItem('pref_currency') || 'TWD';
         const currencySymbols = { 'TWD': 'NT$', 'JPY': '¥' };
 
-        // --- 1. 即時監聽 Firestore 數據 ---
         const q = query(collection(db, "wishes"), orderBy("createdAt", "desc"));
         onSnapshot(q, (snapshot) => {
             renderList(snapshot);
         });
 
-        // --- 2. 渲染畫面 ---
         function renderList(snapshot) {
             const listDiv = document.getElementById('wish-list');
             listDiv.innerHTML = '';
@@ -99,8 +107,6 @@
             snapshot.forEach((docSnap) => {
                 const wish = docSnap.data();
                 const id = docSnap.id;
-                
-                // 幣別處理：優先使用該項目儲存的幣別，若無則使用目前的預設
                 const itemCurrency = wish.currency || currentCurrency;
                 const symbol = currencySymbols[itemCurrency];
                 const total = wish.price ? `${symbol} ${(wish.price * (wish.quantity || 1)).toLocaleString()}` : '未填金額';
@@ -119,6 +125,7 @@
                         <div class="text-xs text-zinc-500 mt-1 pl-6">
                             數量: ${wish.quantity || 1} | 總計: <span class="text-emerald-600 font-bold">${total}</span>
                         </div>
+                        ${wish.note ? `<div class="text-[11px] text-zinc-400 mt-1 pl-6 italic">💬 ${wish.note}</div>` : ''}
                     </div>
                     <button onclick="deleteWish('${id}')" class="text-zinc-300 hover:text-red-500 transition">🗑️</button>
                 `;
@@ -130,9 +137,6 @@
             }
         }
 
-        // --- 3. 操作功能 ---
-        
-        // 新增
         document.getElementById('wish-form').onsubmit = async (e) => {
             e.preventDefault();
             const btn = document.getElementById('submit-btn');
@@ -146,11 +150,11 @@
                     currency: currentCurrency,
                     category: document.getElementById('item-category').value,
                     quantity: Number(document.getElementById('item-quantity').value),
+                    note: document.getElementById('item-note').value || "",
                     bought: false,
                     createdAt: new Date()
                 });
                 e.target.reset();
-                // 重設後手動呼叫一次幣別更新，確保表單符號正確
                 window.setGlobalCurrency(currentCurrency);
             } catch (err) {
                 alert("儲存失敗: " + err.message);
@@ -160,36 +164,24 @@
             }
         };
 
-        // 狀態切換 (已買/未買)
         window.toggleStatus = async (id, currentStatus) => {
             await updateDoc(doc(db, "wishes", id), { bought: !currentStatus });
         };
 
-        // 刪除
         window.deleteWish = async (id) => {
             if (confirm("確定要刪除這項願望嗎？")) {
                 await deleteDoc(doc(db, "wishes", id));
             }
         };
 
-        // 幣別切換控制
         window.setGlobalCurrency = (cur) => {
             currentCurrency = cur;
             localStorage.setItem('pref_currency', cur);
-            
-            // 更新按鈕視覺
             document.getElementById('btn-TWD').className = `text-xs font-bold px-2.5 py-1 rounded-md transition ${cur === 'TWD' ? 'active-btn' : 'inactive-btn'}`;
             document.getElementById('btn-JPY').className = `text-xs font-bold px-2.5 py-1 rounded-md transition ${cur === 'JPY' ? 'active-btn' : 'inactive-btn'}`;
-            
-            // 更新表單顯示
             document.getElementById('form-currency-label').innerText = currencySymbols[cur];
-            
-            // 重要：因為 Firestore 會自動觸發 onSnapshot，
-            // 這裡不需要手動 re-render，但如果你的 render 邏輯依賴全域變數，它會下次更新時套用。
-            // 這裡我們主動執行一次畫面更新，以應對「未重新從 DB 抓取」時的符號變更。
         };
 
-        // 初始化幣別
         window.setGlobalCurrency(currentCurrency);
     </script>
 </body>
