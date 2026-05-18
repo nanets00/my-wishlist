@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的 Firestore 願望清單</title>
+    <title>我的 Firestore 願望清單V2</title>
     
     <link rel="icon" type="image/png" sizes="192x192" href="icon.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icon.png">
@@ -32,42 +32,43 @@
         </div>
 
         <form id="wish-form" class="space-y-4 mb-10 bg-zinc-50 p-5 rounded-xl border border-zinc-200">
-            <div class="flex flex-col md:flex-row gap-4">
-                <div class="flex-1">
-                    <label class="block text-sm font-medium text-zinc-600 mb-1">商品名稱 *</label>
-                    <input type="text" id="item-name" required class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm" placeholder="想買什麼？">
-                </div>
-                <div class="w-full md:w-48">
-                    <label class="block text-sm font-medium text-zinc-600 mb-1">預估金額</label>
-                    <div class="flex gap-2 items-center">
-                        <span id="form-currency-label" class="px-3 py-2 bg-zinc-200 text-zinc-700 rounded-lg text-sm font-bold min-w-[54px] text-center">NT$</span>
-                        <input type="number" id="item-price" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm" placeholder="金額">
-                    </div>
-                </div>
-            </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="w-full md:w-40">
                     <label class="block text-sm font-medium text-zinc-600 mb-1">分類</label>
-                    <select id="item-category" class="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm bg-white">
+                    <select id="item-category" class="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm bg-white outline-none">
                         <option value="藥妝類">💄 藥妝類</option>
                         <option value="食物類">🍕 食物類</option>
                         <option value="玩具類">🧸 玩具類</option>
                         <option value="其他">📦 其他</option>
                     </select>
                 </div>
-                <div>
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-zinc-600 mb-1">商品名稱 *</label>
+                    <input type="text" id="item-name" required class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm" placeholder="想買什麼？">
+                </div>
+            </div>
+            
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-zinc-600 mb-1">預估金額</label>
+                    <div class="flex gap-2 items-center">
+                        <span id="form-currency-label" class="px-3 py-2 bg-zinc-200 text-zinc-700 rounded-lg text-sm font-bold min-w-[54px] text-center">NT$</span>
+                        <input type="number" id="item-price" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm" placeholder="金額">
+                    </div>
+                </div>
+                <div class="w-full md:w-32">
                     <label class="block text-sm font-medium text-zinc-600 mb-1">數量</label>
-                    <input type="number" id="item-quantity" min="1" value="1" class="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm">
+                    <input type="number" id="item-quantity" min="1" value="1" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm">
                 </div>
             </div>
 
             <div>
                 <label class="block text-sm font-medium text-zinc-600 mb-1">備註 (選填)</label>
-                <input type="text" id="item-note" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm" placeholder="顏色、規格或是購買地點...">
+                <input type="text" id="item-note" class="w-full px-3 py-2 border border-zinc-300 rounded-lg outline-none text-sm" placeholder="顏色、規格或是預計購買地點 (例如：福岡寶可夢中心)...">
             </div>
 
-            <button type="submit" id="submit-btn" class="w-full bg-zinc-800 hover:bg-black text-white font-medium py-2.5 rounded-lg shadow-md transition">存入 Firestore</button>
+            <button type="submit" id="submit-btn" class="w-full bg-zinc-800 hover:bg-black text-white font-medium py-2.5 rounded-lg shadow-md transition mt-2">存入 Firestore</button>
         </form>
 
         <div class="space-y-4" id="wish-list">
